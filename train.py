@@ -69,14 +69,15 @@ rf = RandomForestClassifier(
 )
 
 hgbt = HistGradientBoostingClassifier(
-    max_iter=1000,
-    max_depth=6,
-    learning_rate=0.05,
-    min_samples_leaf=50,
-    l2_regularization=0.1,
+    max_iter=2000,
+    max_depth=8,
+    learning_rate=0.03,
+    min_samples_leaf=30,
+    l2_regularization=0.05,
+    max_leaf_nodes=63,
     early_stopping=True,
     validation_fraction=0.15,
-    n_iter_no_change=20,
+    n_iter_no_change=30,
     random_state=42,
 )
 
