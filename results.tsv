@@ -44,3 +44,4 @@ d6764ba	0.874790	213.1	keep	15-way voting depths 3,5,7,10,12,15,20 (new best)
 9cb4ac5	0.874738	249.3	discard	17-way with depth-18 (too close to 20, dilutes)
 297754e	0.874783	127.4	keep	15-way with 300 trees each (same AUC, 40% faster)
 cf201e9	0.874784	142.3	discard	17-way with depth-8 (too close to 7, no improvement)
+454edf6	0.874810	126.8	keep	pure 14-way RF(7)+ET(7) — dropping HGBT improves and simplifies
