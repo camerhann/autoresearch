@@ -18,3 +18,4 @@ f33f49d	0.871279	63.7	keep	3-way voting + 7 interaction features (added tpi*slop
 fd975e8	0.871296	122.7	discard	RF(1000)+HGBT+ET(1000) 3-way voting (no improvement, 2x slower)
 654e2c4	0.870433	71.9	discard	RF depth 25 min_leaf 5 sqrt features (overfits)
 883bb73	0.871279	68.0	discard	RF/ET min_split=20 HGBT bins=255 (identical result)
+67f4fd9	0.872201	174.5	keep	4-way voting RF+HGBT+ET+AdaBoost (new best)
