@@ -40,3 +40,4 @@ da6299e	0.873642	255.9	discard	RF1+ET 800 trees (identical result)
 3b8bade	0.874286	144.0	keep	9-way RF(4)+HGBT+ET(4) — dropping Ada improves AUC and halves time
 ffb2903	0.874470	165.5	keep	11-way voting 5×RF(d5,7,10,15,20)+HGBT+5×ET(d5,7,10,15,20) (new best)
 7ef027f	0.874678	179.1	keep	13-way voting 6×RF+HGBT+6×ET depths 3-20 (new best)
+d6764ba	0.874790	213.1	keep	15-way voting depths 3,5,7,10,12,15,20 (new best)
