@@ -35,3 +35,4 @@ ea3b299	0.873053	290.6	discard	8-way with deep RF4 depth 25 (overfitting dilutes
 da6299e	0.873642	255.9	discard	RF1+ET 800 trees (identical result)
 98d45fb	0.872865	737.5	discard	8-way with GradientBoosting (worse + very slow 737s)
 4ea32cb	0.873782	244.0	keep	8-way voting 3×RF+HGBT+3×ET+Ada (new best)
+472feb5	0.874097	265.0	keep	9-way voting 4×RF(d5,10,15,20)+HGBT+3×ET+Ada (new best)
