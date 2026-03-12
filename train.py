@@ -60,12 +60,20 @@ print(f"Engineered features: {X_train.shape[1]} total")
 # Model — Voting ensemble: RF + HGBT + ET
 # ---------------------------------------------------------------------------
 
-rf = RandomForestClassifier(
+rf1 = RandomForestClassifier(
     n_estimators=500,
     max_depth=20,
     min_samples_leaf=10,
     n_jobs=-1,
     random_state=42,
+)
+
+rf2 = RandomForestClassifier(
+    n_estimators=500,
+    max_depth=15,
+    min_samples_leaf=20,
+    n_jobs=-1,
+    random_state=99,
 )
 
 hgbt = HistGradientBoostingClassifier(
@@ -95,7 +103,7 @@ ada = AdaBoostClassifier(
 )
 
 model = VotingClassifier(
-    estimators=[("rf", rf), ("hgbt", hgbt), ("et", et), ("ada", ada)],
+    estimators=[("rf1", rf1), ("rf2", rf2), ("hgbt", hgbt), ("et", et), ("ada", ada)],
     voting="soft",
     n_jobs=-1,
 )
