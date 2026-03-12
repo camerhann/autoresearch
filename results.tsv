@@ -11,3 +11,4 @@ fc2f4a7	0.866874	71.6	keep	RF 1000 trees depth 20
 b1ab1ce	0.867655	39.8	keep	VotingClassifier RF(500)+HGBT(1000) soft voting
 b0987e4	0.866145	406.1	discard	StackingClassifier RF+HGBT→LR cv=3 (slow + worse)
 750d856	0.868917	38.1	keep	3-way VotingClassifier RF(500)+HGBT(1000)+ET(500) soft voting
+80ac00a	0.869809	61.0	keep	3-way voting + feat eng (tpi*twi slope*twi tpi*curv log_spi)

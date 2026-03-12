@@ -1,0 +1,13 @@
+Train: 540,000 samples, 6 features, 50.0% flood
+Val:   160,000 samples, 50.0% flood
+Engineered features: 10 total
+---
+val_auc:          0.869809
+training_seconds: 61.0
+total_seconds:    62.7
+n_features:       10
+n_train:          540000
+n_val:            160000
+flood_rate_train: 0.5000
+flood_rate_val:   0.5000
+model_type:       VotingClassifier(RF+HGBT+ET)+feat_eng
