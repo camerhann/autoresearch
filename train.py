@@ -82,8 +82,9 @@ hgbt = HistGradientBoostingClassifier(
 
 et = ExtraTreesClassifier(
     n_estimators=500,
-    max_depth=20,
-    min_samples_leaf=10,
+    max_depth=None,
+    min_samples_leaf=20,
+    max_features=0.7,
     n_jobs=-1,
     random_state=42,
 )
