@@ -102,8 +102,16 @@ ada = AdaBoostClassifier(
     random_state=42,
 )
 
+rf3 = RandomForestClassifier(
+    n_estimators=500,
+    max_depth=10,
+    min_samples_leaf=30,
+    n_jobs=-1,
+    random_state=77,
+)
+
 model = VotingClassifier(
-    estimators=[("rf1", rf1), ("rf2", rf2), ("hgbt", hgbt), ("et", et), ("ada", ada)],
+    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("hgbt", hgbt), ("et", et), ("ada", ada)],
     voting="soft",
     n_jobs=-1,
 )
