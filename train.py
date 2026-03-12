@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier, AdaBoostClassifier, BaggingClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -94,8 +94,22 @@ ada = AdaBoostClassifier(
     random_state=42,
 )
 
+bag_hgbt = BaggingClassifier(
+    estimator=HistGradientBoostingClassifier(
+        max_iter=500, max_depth=5, learning_rate=0.08,
+        min_samples_leaf=30, l2_regularization=0.2,
+        early_stopping=True, validation_fraction=0.15,
+        n_iter_no_change=15, random_state=77,
+    ),
+    n_estimators=5,
+    max_samples=0.8,
+    max_features=0.8,
+    random_state=42,
+    n_jobs=-1,
+)
+
 model = VotingClassifier(
-    estimators=[("rf", rf), ("hgbt", hgbt), ("et", et), ("ada", ada)],
+    estimators=[("rf", rf), ("hgbt", hgbt), ("et", et), ("ada", ada), ("bag_hgbt", bag_hgbt)],
     voting="soft",
     n_jobs=-1,
 )
