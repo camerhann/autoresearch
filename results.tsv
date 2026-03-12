@@ -27,3 +27,4 @@ a812ecd	0.872225	418.2	discard	AdaBoost 500 est lr 0.05 (marginal +0.00002 but 2
 0efaff8	0.870361	127.1	discard	reduced to 3 interactions (lost too much signal)
 3863bb3	0.872063	187.0	discard	5-way with BaggingClassifier(HGBT) (slightly worse)
 d4f012c	0.870622	178.7	discard	ET unlimited depth min_leaf 20 features 0.7 (overfits)
+c387668	0.872419	208.7	keep	5-way voting RF(d20)+RF(d15)+HGBT+ET+Ada (new best)
