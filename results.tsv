@@ -5,3 +5,4 @@ commit	val_auc	training_seconds	status	description
 2518107	0.866387	46.9	discard	interaction features (slope*twi tpi*curv log_spi tpi*twi)
 98aac43	0.859225	2.2	discard	ExtraTrees 300 trees depth 25 min_leaf 5
 4670dc8	0.865305	53.7	discard	RF 500 trees depth 20 max_features 0.5
+e8e6f3e	0.866787	37.1	keep	RF 500 trees depth 20 (small but real improvement)
