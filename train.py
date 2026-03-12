@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -96,12 +96,6 @@ et = ExtraTreesClassifier(
     random_state=42,
 )
 
-ada = AdaBoostClassifier(
-    n_estimators=200,
-    learning_rate=0.1,
-    random_state=42,
-)
-
 rf3 = RandomForestClassifier(
     n_estimators=500,
     max_depth=10,
@@ -142,8 +136,28 @@ et4 = ExtraTreesClassifier(
     random_state=33,
 )
 
+rf5 = RandomForestClassifier(
+    n_estimators=500,
+    max_depth=7,
+    min_samples_leaf=40,
+    n_jobs=-1,
+    random_state=11,
+)
+
+et5 = ExtraTreesClassifier(
+    n_estimators=500,
+    max_depth=7,
+    min_samples_leaf=40,
+    n_jobs=-1,
+    random_state=11,
+)
+
 model = VotingClassifier(
-    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("hgbt", hgbt), ("et", et), ("et2", et2), ("et3", et3), ("et4", et4)],
+    estimators=[
+        ("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("rf5", rf5),
+        ("hgbt", hgbt),
+        ("et", et), ("et2", et2), ("et3", et3), ("et4", et4), ("et5", et5),
+    ],
     voting="soft",
     n_jobs=-1,
 )
