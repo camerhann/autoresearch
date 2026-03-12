@@ -42,8 +42,12 @@ def add_features(X):
     new = np.column_stack([
         X,
         tpi * twi,              # depression + wetness
-        twi / (slope + 0.01),   # wetness per unit slope (flood accumulation)
+        slope * twi,            # steep + wet
         tpi * curv,             # depression + concavity
+        np.log1p(np.abs(spi)),  # log SPI (skewed)
+        tpi * slope,            # depression + gradient
+        twi * curv,             # wetness + curvature
+        twi / (slope + 0.01),   # wetness per unit slope (flood accumulation)
     ])
     return new
 
