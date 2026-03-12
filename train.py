@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, VotingClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -57,141 +57,27 @@ X_val = add_features(X_val)
 print(f"Engineered features: {X_train.shape[1]} total")
 
 # ---------------------------------------------------------------------------
-# Model — Voting ensemble: RF + HGBT + ET
+# Model — Depth-spectrum voting ensemble: RF + ET at varied depths
 # ---------------------------------------------------------------------------
 
-rf1 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=20,
-    min_samples_leaf=10,
-    n_jobs=-1,
-    random_state=42,
-)
+DEPTHS = [3, 5, 7, 10, 12, 15, 20]
+MIN_LEAF = {3: 100, 5: 50, 7: 40, 10: 30, 12: 25, 15: 20, 20: 10}
+TREES = 300
 
-rf2 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=15,
-    min_samples_leaf=20,
-    n_jobs=-1,
-    random_state=99,
-)
+estimators = []
+for i, d in enumerate(DEPTHS):
+    rf = RandomForestClassifier(
+        n_estimators=TREES, max_depth=d, min_samples_leaf=MIN_LEAF[d],
+        n_jobs=-1, random_state=42 + i,
+    )
+    et = ExtraTreesClassifier(
+        n_estimators=TREES, max_depth=d, min_samples_leaf=MIN_LEAF[d],
+        n_jobs=-1, random_state=42 + i,
+    )
+    estimators.append((f"rf_d{d}", rf))
+    estimators.append((f"et_d{d}", et))
 
-hgbt = HistGradientBoostingClassifier(
-    max_iter=1000,
-    max_depth=6,
-    learning_rate=0.05,
-    min_samples_leaf=50,
-    l2_regularization=0.1,
-    early_stopping=True,
-    validation_fraction=0.15,
-    n_iter_no_change=20,
-    random_state=42,
-)
-
-et = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=20,
-    min_samples_leaf=10,
-    n_jobs=-1,
-    random_state=42,
-)
-
-rf3 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=10,
-    min_samples_leaf=30,
-    n_jobs=-1,
-    random_state=77,
-)
-
-et2 = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=10,
-    min_samples_leaf=30,
-    n_jobs=-1,
-    random_state=77,
-)
-
-et3 = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=15,
-    min_samples_leaf=20,
-    n_jobs=-1,
-    random_state=55,
-)
-
-rf4 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=5,
-    min_samples_leaf=50,
-    n_jobs=-1,
-    random_state=33,
-)
-
-et4 = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=5,
-    min_samples_leaf=50,
-    n_jobs=-1,
-    random_state=33,
-)
-
-rf5 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=7,
-    min_samples_leaf=40,
-    n_jobs=-1,
-    random_state=11,
-)
-
-rf6 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=3,
-    min_samples_leaf=100,
-    n_jobs=-1,
-    random_state=22,
-)
-
-et5 = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=7,
-    min_samples_leaf=40,
-    n_jobs=-1,
-    random_state=11,
-)
-
-et6 = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=3,
-    min_samples_leaf=100,
-    n_jobs=-1,
-    random_state=22,
-)
-
-rf7 = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=12,
-    min_samples_leaf=25,
-    n_jobs=-1,
-    random_state=44,
-)
-
-et7 = ExtraTreesClassifier(
-    n_estimators=300,
-    max_depth=12,
-    min_samples_leaf=25,
-    n_jobs=-1,
-    random_state=44,
-)
-
-model = VotingClassifier(
-    estimators=[
-        ("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("rf5", rf5), ("rf6", rf6), ("rf7", rf7),
-        ("et", et), ("et2", et2), ("et3", et3), ("et4", et4), ("et5", et5), ("et6", et6), ("et7", et7),
-    ],
-    voting="soft",
-    n_jobs=-1,
-)
+model = VotingClassifier(estimators=estimators, voting="soft", n_jobs=-1)
 
 # ---------------------------------------------------------------------------
 # Train
@@ -220,4 +106,4 @@ print(f"n_train:          {len(X_train)}")
 print(f"n_val:            {len(X_val)}")
 print(f"flood_rate_train: {y_train.mean():.4f}")
 print(f"flood_rate_val:   {y_val.mean():.4f}")
-print(f"model_type:       VotingClassifier(RF+HGBT+ET)+feat_eng")
+print(f"model_type:       VotingClassifier(RF+ET depth spectrum)+feat_eng")
