@@ -29,3 +29,4 @@ a812ecd	0.872225	418.2	discard	AdaBoost 500 est lr 0.05 (marginal +0.00002 but 2
 d4f012c	0.870622	178.7	discard	ET unlimited depth min_leaf 20 features 0.7 (overfits)
 c387668	0.872419	208.7	keep	5-way voting RF(d20)+RF(d15)+HGBT+ET+Ada (new best)
 76e16fd	0.872899	237.3	keep	6-way voting 3×RF(d20,d15,d10)+HGBT+ET+Ada (new best)
+f7be24a	0.873637	237.9	keep	7-way voting 3×RF+HGBT+2×ET+Ada (new best)
