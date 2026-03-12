@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier, AdaBoostClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -88,8 +88,14 @@ et = ExtraTreesClassifier(
     random_state=42,
 )
 
+ada = AdaBoostClassifier(
+    n_estimators=200,
+    learning_rate=0.1,
+    random_state=42,
+)
+
 model = VotingClassifier(
-    estimators=[("rf", rf), ("hgbt", hgbt), ("et", et)],
+    estimators=[("rf", rf), ("hgbt", hgbt), ("et", et), ("ada", ada)],
     voting="soft",
     n_jobs=-1,
 )
