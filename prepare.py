@@ -1,389 +1,389 @@
 """
-One-time data preparation for autoresearch experiments.
-Downloads data shards and trains a BPE tokenizer.
+One-time data preparation for flood susceptibility experiments.
+Downloads terrain features from CloudFront COGs and EA surface water labels from WMS.
 
 Usage:
-    python prepare.py                  # full prep (download + tokenizer)
-    python prepare.py --num-shards 8   # download only 8 shards (for testing)
+    python prepare.py                  # full prep (default tiles)
+    python prepare.py --num-tiles 10   # fewer tiles (for testing)
 
-Data and tokenizer are stored in ~/.cache/autoresearch/.
+Data is stored in ~/.cache/autoresearch-flood/.
 """
 
 import os
 import sys
+import io
 import time
-import math
+import json
 import argparse
-import pickle
-from multiprocessing import Pool
+from pathlib import Path
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 
-import requests
-import pyarrow.parquet as pq
-import rustbpe
-import tiktoken
-import torch
+import numpy as np
+import rasterio
+from PIL import Image
 
 # ---------------------------------------------------------------------------
 # Constants (fixed, do not modify)
 # ---------------------------------------------------------------------------
 
-MAX_SEQ_LEN = 2048       # context length
-TIME_BUDGET = 300        # training time budget in seconds (5 minutes)
-EVAL_TOKENS = 40 * 524288  # number of tokens for val eval
+TIME_BUDGET = 300       # training time budget in seconds (5 minutes)
+
+CACHE_DIR = Path.home() / ".cache" / "autoresearch-flood"
+TERRAIN_DIR = CACHE_DIR / "terrain"
+LABEL_DIR = CACHE_DIR / "labels"
+DATASET_DIR = CACHE_DIR / "dataset"
+
+CLOUDFRONT_BASE = "https://d22hqok9vcmc2j.cloudfront.net/cog"
+EA_WMS = "https://environment.data.gov.uk/spatialdata/nafra2-risk-of-flooding-from-surface-water/wms"
+
+# Terrain feature products (all safe — local-kernel, no block boundary issues)
+FEATURE_PRODUCTS = ["slope", "twi", "tpi", "curvature", "spi", "conditioned"]
+FEATURE_NAMES = ["slope", "twi", "tpi", "curvature", "spi", "elevation"]
+N_FEATURES = len(FEATURE_PRODUCTS)
+
+TILE_SIZE_M = 5000      # 5km tiles
+PIXEL_SIZE_M = 2        # 2m resolution
+TILE_PIXELS = TILE_SIZE_M // PIXEL_SIZE_M  # 2500
+
+# WMS label download at full terrain resolution
+WMS_RESOLUTION = TILE_PIXELS  # 2500px = 2m
+ALPHA_THRESHOLD = 128   # alpha >= this = flood
+
+SAMPLES_PER_TILE = 20000  # max balanced samples per tile
+MIN_FLOOD_PIXELS = 200    # skip tiles with fewer flood pixels than this
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Tile lists (fixed for reproducibility)
+# Diverse England coverage: urban, suburban, rural, flat, hilly
 # ---------------------------------------------------------------------------
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "autoresearch")
-DATA_DIR = os.path.join(CACHE_DIR, "data")
-TOKENIZER_DIR = os.path.join(CACHE_DIR, "tokenizer")
-BASE_URL = "https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle/resolve/main"
-MAX_SHARD = 6542 # the last datashard is shard_06542.parquet
-VAL_SHARD = MAX_SHARD  # pinned validation shard (shard_06542)
-VAL_FILENAME = f"shard_{VAL_SHARD:05d}.parquet"
-VOCAB_SIZE = 8192
+TRAIN_TILES = [
+    # London
+    (525000, 175000), (530000, 180000), (535000, 175000),
+    (520000, 185000), (540000, 170000), (515000, 180000),
+    # Birmingham
+    (405000, 280000), (410000, 285000), (400000, 275000),
+    # Manchester
+    (380000, 395000), (385000, 400000),
+    # Leeds
+    (425000, 435000), (430000, 430000),
+    # Bristol
+    (355000, 175000), (360000, 170000),
+    # Sheffield / Nottingham
+    (435000, 385000), (455000, 340000), (460000, 345000),
+    # Cambridge
+    (545000, 255000),
+    # York
+    (460000, 450000),
+    # Rural / mixed terrain
+    (470000, 300000), (500000, 200000), (350000, 300000),
+    (480000, 400000), (560000, 250000), (300000, 150000),
+    (410000, 350000), (490000, 340000), (370000, 250000),
+    (440000, 200000),
+]
 
-# BPE split pattern (GPT-4 style, with \p{N}{1,2} instead of {1,3})
-SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
-
-SPECIAL_TOKENS = [f"<|reserved_{i}|>" for i in range(4)]
-BOS_TOKEN = "<|reserved_0|>"
+VAL_TILES = [
+    (620000, 310000),  # Norwich
+    (445000, 115000),  # Southampton
+    (395000, 220000),  # Cheltenham area
+    (425000, 565000),  # Newcastle area
+    (290000, 95000),   # Exeter
+    (510000, 300000),  # East Midlands
+    (330000, 120000),  # Dorset
+    (420000, 480000),  # North Yorkshire
+    (550000, 350000),  # Suffolk
+    (380000, 150000),  # Somerset
+]
 
 # ---------------------------------------------------------------------------
-# Data download
+# Download functions
 # ---------------------------------------------------------------------------
 
-def download_single_shard(index):
-    """Download one parquet shard with retries. Returns True on success."""
-    filename = f"shard_{index:05d}.parquet"
-    filepath = os.path.join(DATA_DIR, filename)
-    if os.path.exists(filepath):
-        return True
+def _tile_name(easting: int, northing: int) -> str:
+    return f"E{easting:06d}_N{northing:06d}"
 
-    url = f"{BASE_URL}/{filename}"
-    max_attempts = 5
-    for attempt in range(1, max_attempts + 1):
+
+def download_terrain_tile(product: str, easting: int, northing: int) -> Path | None:
+    """Download a single terrain COG from CloudFront. Returns local path or None."""
+    name = _tile_name(easting, northing)
+    local_path = TERRAIN_DIR / product / f"{name}.tif"
+    if local_path.exists():
+        return local_path
+
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    url = f"{CLOUDFRONT_BASE}/{product}/{name}.tif"
+
+    for attempt in range(3):
         try:
-            response = requests.get(url, stream=True, timeout=30)
-            response.raise_for_status()
-            temp_path = filepath + ".tmp"
-            with open(temp_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        f.write(chunk)
-            os.rename(temp_path, filepath)
-            print(f"  Downloaded {filename}")
-            return True
-        except (requests.RequestException, IOError) as e:
-            print(f"  Attempt {attempt}/{max_attempts} failed for {filename}: {e}")
-            for path in [filepath + ".tmp", filepath]:
-                if os.path.exists(path):
-                    try:
-                        os.remove(path)
-                    except OSError:
-                        pass
-            if attempt < max_attempts:
+            req = Request(url, headers={"User-Agent": "autoresearch-flood/1.0"})
+            with urlopen(req, timeout=120) as resp:
+                data = resp.read()
+            tmp = local_path.with_suffix(".tmp")
+            tmp.write_bytes(data)
+            tmp.rename(local_path)
+            return local_path
+        except (URLError, HTTPError, OSError) as e:
+            if attempt < 2:
                 time.sleep(2 ** attempt)
-    return False
+    return None
 
 
-def download_data(num_shards, download_workers=8):
-    """Download training shards + pinned validation shard."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    num_train = min(num_shards, MAX_SHARD)
-    ids = list(range(num_train))
-    if VAL_SHARD not in ids:
-        ids.append(VAL_SHARD)
+def download_label_tile(easting: int, northing: int) -> Path | None:
+    """Download EA surface water label from WMS as binary numpy array."""
+    name = _tile_name(easting, northing)
+    local_path = LABEL_DIR / f"{name}.npy"
+    if local_path.exists():
+        return local_path
 
-    # Count what's already downloaded
-    existing = sum(1 for i in ids if os.path.exists(os.path.join(DATA_DIR, f"shard_{i:05d}.parquet")))
-    if existing == len(ids):
-        print(f"Data: all {len(ids)} shards already downloaded at {DATA_DIR}")
-        return
+    local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    needed = len(ids) - existing
-    print(f"Data: downloading {needed} shards ({existing} already exist)...")
+    xmin, ymin = easting, northing
+    xmax, ymax = easting + TILE_SIZE_M, northing + TILE_SIZE_M
+    params = (
+        f"SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap"
+        f"&LAYERS=rofsw&FORMAT=image/png&TRANSPARENT=true"
+        f"&SRS=EPSG:27700"
+        f"&BBOX={xmin},{ymin},{xmax},{ymax}"
+        f"&WIDTH={WMS_RESOLUTION}&HEIGHT={WMS_RESOLUTION}"
+    )
+    url = f"{EA_WMS}?{params}"
 
-    workers = max(1, min(download_workers, needed))
-    with Pool(processes=workers) as pool:
-        results = pool.map(download_single_shard, ids)
+    for attempt in range(3):
+        try:
+            req = Request(url, headers={"User-Agent": "autoresearch-flood/1.0"})
+            with urlopen(req, timeout=120) as resp:
+                png_data = resp.read()
 
-    ok = sum(1 for r in results if r)
-    print(f"Data: {ok}/{len(ids)} shards ready at {DATA_DIR}")
+            img = Image.open(io.BytesIO(png_data))
+            arr = np.array(img)
+
+            if arr.ndim == 3 and arr.shape[2] == 4:
+                # RGBA — threshold alpha channel
+                label = (arr[:, :, 3] >= ALPHA_THRESHOLD).astype(np.uint8)
+            elif arr.ndim == 3:
+                # RGB — treat dark pixels as flood
+                label = (arr.mean(axis=2) < 200).astype(np.uint8)
+            else:
+                label = np.zeros((WMS_RESOLUTION, WMS_RESOLUTION), dtype=np.uint8)
+
+            np.save(local_path, label)
+            return local_path
+        except (URLError, HTTPError, OSError) as e:
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+    return None
+
+
+def download_all_data(tiles: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Download all tile data. Returns list of tiles where all downloads succeeded."""
+    print(f"Downloading data for {len(tiles)} tiles...")
+    valid = []
+    for i, (e, n) in enumerate(tiles):
+        name = _tile_name(e, n)
+        print(f"  [{i+1}/{len(tiles)}] {name}...", end=" ", flush=True)
+
+        ok = True
+        for product in FEATURE_PRODUCTS:
+            if download_terrain_tile(product, e, n) is None:
+                ok = False
+                break
+        if ok and download_label_tile(e, n) is None:
+            ok = False
+
+        if ok:
+            valid.append((e, n))
+            print("OK")
+        else:
+            print("SKIP")
+
+    print(f"Downloaded {len(valid)}/{len(tiles)} tiles successfully")
+    return valid
+
 
 # ---------------------------------------------------------------------------
-# Tokenizer training
+# Dataset creation
 # ---------------------------------------------------------------------------
 
-def list_parquet_files():
-    """Return sorted list of parquet file paths in the data directory."""
-    files = sorted(f for f in os.listdir(DATA_DIR) if f.endswith(".parquet") and not f.endswith(".tmp"))
-    return [os.path.join(DATA_DIR, f) for f in files]
+def load_tile_features(easting: int, northing: int) -> np.ndarray | None:
+    """Load all feature bands for a tile. Returns (H, W, N_FEATURES) float32 or None."""
+    name = _tile_name(easting, northing)
+    bands = []
+    for product in FEATURE_PRODUCTS:
+        path = TERRAIN_DIR / product / f"{name}.tif"
+        if not path.exists():
+            return None
+        with rasterio.open(path) as src:
+            data = src.read(1).astype(np.float32)
+            nodata = src.nodata
+        # Replace nodata sentinel values with NaN
+        if nodata is not None:
+            data[data == nodata] = np.nan
+        # Also catch common sentinel values
+        data[data <= -9999] = np.nan
+        bands.append(data)
+    return np.stack(bands, axis=-1)
 
 
-def text_iterator(max_chars=1_000_000_000, doc_cap=10_000):
-    """Yield documents from training split (all shards except pinned val shard)."""
-    parquet_paths = [p for p in list_parquet_files() if not p.endswith(VAL_FILENAME)]
-    nchars = 0
-    for filepath in parquet_paths:
-        pf = pq.ParquetFile(filepath)
-        for rg_idx in range(pf.num_row_groups):
-            rg = pf.read_row_group(rg_idx)
-            for text in rg.column("text").to_pylist():
-                doc = text[:doc_cap] if len(text) > doc_cap else text
-                nchars += len(doc)
-                yield doc
-                if nchars >= max_chars:
-                    return
+def load_tile_labels(easting: int, northing: int) -> np.ndarray | None:
+    """Load label raster for a tile. Returns (H, W) uint8 or None."""
+    name = _tile_name(easting, northing)
+    path = LABEL_DIR / f"{name}.npy"
+    if not path.exists():
+        return None
+    return np.load(path)
 
 
-def train_tokenizer():
-    """Train BPE tokenizer using rustbpe, save as tiktoken pickle."""
-    tokenizer_pkl = os.path.join(TOKENIZER_DIR, "tokenizer.pkl")
-    token_bytes_path = os.path.join(TOKENIZER_DIR, "token_bytes.pt")
+def sample_tile(easting: int, northing: int, n_samples: int,
+                rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray] | None:
+    """
+    Sample balanced flood/non-flood pixels from one tile.
+    Returns (X, y) with X shape (n, N_FEATURES) and y shape (n,), or None.
+    """
+    features = load_tile_features(easting, northing)
+    labels = load_tile_labels(easting, northing)
+    if features is None or labels is None:
+        return None
 
-    if os.path.exists(tokenizer_pkl) and os.path.exists(token_bytes_path):
-        print(f"Tokenizer: already trained at {TOKENIZER_DIR}")
-        return
+    feat_h, feat_w = features.shape[:2]
+    lab_h, lab_w = labels.shape
 
-    os.makedirs(TOKENIZER_DIR, exist_ok=True)
+    # Upscale labels to match feature resolution if needed
+    if (lab_h, lab_w) != (feat_h, feat_w):
+        label_img = Image.fromarray(labels, mode='L')
+        label_img = label_img.resize((feat_w, feat_h), Image.NEAREST)
+        labels = np.array(label_img)
 
-    parquet_files = list_parquet_files()
-    if len(parquet_files) < 2:
-        print("Tokenizer: need at least 2 data shards (1 train + 1 val). Download more data first.")
+    # Valid mask: all features must be finite
+    valid = np.all(np.isfinite(features), axis=-1)
+
+    flood_idx = np.argwhere(valid & (labels == 1))
+    nonflood_idx = np.argwhere(valid & (labels == 0))
+
+    if len(flood_idx) < MIN_FLOOD_PIXELS:
+        return None
+
+    # Balanced sampling: equal flood and non-flood
+    n_each = min(n_samples // 2, len(flood_idx), len(nonflood_idx))
+    if n_each < MIN_FLOOD_PIXELS // 2:
+        return None
+
+    flood_sample = flood_idx[rng.choice(len(flood_idx), n_each, replace=False)]
+    nonflood_sample = nonflood_idx[rng.choice(len(nonflood_idx), n_each, replace=False)]
+
+    all_idx = np.concatenate([flood_sample, nonflood_sample])
+    rows, cols = all_idx[:, 0], all_idx[:, 1]
+
+    X = features[rows, cols]  # (2*n_each, N_FEATURES)
+    y = labels[rows, cols]    # (2*n_each,)
+
+    return X, y
+
+
+def create_dataset(tile_list: list[tuple[int, int]], n_per_tile: int,
+                   seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Create dataset by sampling pixels from tiles."""
+    rng = np.random.default_rng(seed)
+
+    all_X, all_y = [], []
+    for e, n in tile_list:
+        name = _tile_name(e, n)
+        result = sample_tile(e, n, n_per_tile, rng)
+        if result is None:
+            print(f"  Skipping {name} (insufficient flood pixels or data)")
+            continue
+        X, y = result
+        all_X.append(X)
+        all_y.append(y)
+        print(f"  {name}: {len(X):,} pixels ({y.mean():.1%} flood)")
+
+    if not all_X:
+        print("ERROR: No valid tiles found!")
         sys.exit(1)
 
-    # --- Train with rustbpe ---
-    print("Tokenizer: training BPE tokenizer...")
-    t0 = time.time()
+    return np.concatenate(all_X), np.concatenate(all_y)
 
-    tokenizer = rustbpe.Tokenizer()
-    vocab_size_no_special = VOCAB_SIZE - len(SPECIAL_TOKENS)
-    tokenizer.train_from_iterator(text_iterator(), vocab_size_no_special, pattern=SPLIT_PATTERN)
-
-    # Build tiktoken encoding from trained merges
-    pattern = tokenizer.get_pattern()
-    mergeable_ranks = {bytes(k): v for k, v in tokenizer.get_mergeable_ranks()}
-    tokens_offset = len(mergeable_ranks)
-    special_tokens = {name: tokens_offset + i for i, name in enumerate(SPECIAL_TOKENS)}
-    enc = tiktoken.Encoding(
-        name="rustbpe",
-        pat_str=pattern,
-        mergeable_ranks=mergeable_ranks,
-        special_tokens=special_tokens,
-    )
-
-    # Save tokenizer
-    with open(tokenizer_pkl, "wb") as f:
-        pickle.dump(enc, f)
-
-    t1 = time.time()
-    print(f"Tokenizer: trained in {t1 - t0:.1f}s, saved to {tokenizer_pkl}")
-
-    # --- Build token_bytes lookup for BPB evaluation ---
-    print("Tokenizer: building token_bytes lookup...")
-    special_set = set(SPECIAL_TOKENS)
-    token_bytes_list = []
-    for token_id in range(enc.n_vocab):
-        token_str = enc.decode([token_id])
-        if token_str in special_set:
-            token_bytes_list.append(0)
-        else:
-            token_bytes_list.append(len(token_str.encode("utf-8")))
-    token_bytes_tensor = torch.tensor(token_bytes_list, dtype=torch.int32)
-    torch.save(token_bytes_tensor, token_bytes_path)
-    print(f"Tokenizer: saved token_bytes to {token_bytes_path}")
-
-    # Sanity check
-    test = "Hello world! Numbers: 123. Unicode: 你好"
-    encoded = enc.encode_ordinary(test)
-    decoded = enc.decode(encoded)
-    assert decoded == test, f"Tokenizer roundtrip failed: {test!r} -> {decoded!r}"
-    print(f"Tokenizer: sanity check passed (vocab_size={enc.n_vocab})")
-
-# ---------------------------------------------------------------------------
-# Runtime utilities (imported by train.py)
-# ---------------------------------------------------------------------------
-
-class Tokenizer:
-    """Minimal tokenizer wrapper. Training is handled above."""
-
-    def __init__(self, enc):
-        self.enc = enc
-        self.bos_token_id = enc.encode_single_token(BOS_TOKEN)
-
-    @classmethod
-    def from_directory(cls, tokenizer_dir=TOKENIZER_DIR):
-        with open(os.path.join(tokenizer_dir, "tokenizer.pkl"), "rb") as f:
-            enc = pickle.load(f)
-        return cls(enc)
-
-    def get_vocab_size(self):
-        return self.enc.n_vocab
-
-    def get_bos_token_id(self):
-        return self.bos_token_id
-
-    def encode(self, text, prepend=None, num_threads=8):
-        if prepend is not None:
-            prepend_id = prepend if isinstance(prepend, int) else self.enc.encode_single_token(prepend)
-        if isinstance(text, str):
-            ids = self.enc.encode_ordinary(text)
-            if prepend is not None:
-                ids.insert(0, prepend_id)
-        elif isinstance(text, list):
-            ids = self.enc.encode_ordinary_batch(text, num_threads=num_threads)
-            if prepend is not None:
-                for row in ids:
-                    row.insert(0, prepend_id)
-        else:
-            raise ValueError(f"Invalid input type: {type(text)}")
-        return ids
-
-    def decode(self, ids):
-        return self.enc.decode(ids)
-
-
-def get_token_bytes(device="cpu"):
-    path = os.path.join(TOKENIZER_DIR, "token_bytes.pt")
-    with open(path, "rb") as f:
-        return torch.load(f, map_location=device)
-
-
-def _document_batches(split, tokenizer_batch_size=128):
-    """Infinite iterator over document batches from parquet files."""
-    parquet_paths = list_parquet_files()
-    assert len(parquet_paths) > 0, "No parquet files found. Run prepare.py first."
-    val_path = os.path.join(DATA_DIR, VAL_FILENAME)
-    if split == "train":
-        parquet_paths = [p for p in parquet_paths if p != val_path]
-        assert len(parquet_paths) > 0, "No training shards found."
-    else:
-        parquet_paths = [val_path]
-    epoch = 1
-    while True:
-        for filepath in parquet_paths:
-            pf = pq.ParquetFile(filepath)
-            for rg_idx in range(pf.num_row_groups):
-                rg = pf.read_row_group(rg_idx)
-                batch = rg.column('text').to_pylist()
-                for i in range(0, len(batch), tokenizer_batch_size):
-                    yield batch[i:i+tokenizer_batch_size], epoch
-        epoch += 1
-
-
-def make_dataloader(tokenizer, B, T, split, buffer_size=1000):
-    """
-    BOS-aligned dataloader with best-fit packing.
-    Every row starts with BOS. Documents packed using best-fit to minimize cropping.
-    When no document fits remaining space, crops shortest doc to fill exactly.
-    100% utilization (no padding).
-    """
-    assert split in ["train", "val"]
-    row_capacity = T + 1
-    batches = _document_batches(split)
-    bos_token = tokenizer.get_bos_token_id()
-    doc_buffer = []
-    epoch = 1
-
-    def refill_buffer():
-        nonlocal epoch
-        doc_batch, epoch = next(batches)
-        token_lists = tokenizer.encode(doc_batch, prepend=bos_token)
-        doc_buffer.extend(token_lists)
-
-    # Pre-allocate buffers: [inputs (B*T) | targets (B*T)]
-    row_buffer = torch.empty((B, row_capacity), dtype=torch.long)
-    cpu_buffer = torch.empty(2 * B * T, dtype=torch.long, pin_memory=True)
-    gpu_buffer = torch.empty(2 * B * T, dtype=torch.long, device="cuda")
-    cpu_inputs = cpu_buffer[:B * T].view(B, T)
-    cpu_targets = cpu_buffer[B * T:].view(B, T)
-    inputs = gpu_buffer[:B * T].view(B, T)
-    targets = gpu_buffer[B * T:].view(B, T)
-
-    while True:
-        for row_idx in range(B):
-            pos = 0
-            while pos < row_capacity:
-                while len(doc_buffer) < buffer_size:
-                    refill_buffer()
-
-                remaining = row_capacity - pos
-
-                # Find largest doc that fits entirely
-                best_idx = -1
-                best_len = 0
-                for i, doc in enumerate(doc_buffer):
-                    doc_len = len(doc)
-                    if doc_len <= remaining and doc_len > best_len:
-                        best_idx = i
-                        best_len = doc_len
-
-                if best_idx >= 0:
-                    doc = doc_buffer.pop(best_idx)
-                    row_buffer[row_idx, pos:pos + len(doc)] = torch.tensor(doc, dtype=torch.long)
-                    pos += len(doc)
-                else:
-                    # No doc fits — crop shortest to fill remaining
-                    shortest_idx = min(range(len(doc_buffer)), key=lambda i: len(doc_buffer[i]))
-                    doc = doc_buffer.pop(shortest_idx)
-                    row_buffer[row_idx, pos:pos + remaining] = torch.tensor(doc[:remaining], dtype=torch.long)
-                    pos += remaining
-
-        cpu_inputs.copy_(row_buffer[:, :-1])
-        cpu_targets.copy_(row_buffer[:, 1:])
-        gpu_buffer.copy_(cpu_buffer, non_blocking=True)
-        yield inputs, targets, epoch
 
 # ---------------------------------------------------------------------------
 # Evaluation (DO NOT CHANGE — this is the fixed metric)
 # ---------------------------------------------------------------------------
 
-@torch.no_grad()
-def evaluate_bpb(model, tokenizer, batch_size):
+def evaluate_auc(model, X_val: np.ndarray, y_val: np.ndarray) -> float:
     """
-    Bits per byte (BPB): vocab size-independent evaluation metric.
-    Sums per-token cross-entropy (in nats), sums target byte lengths,
-    then converts nats/byte to bits/byte. Special tokens (byte length 0)
-    are excluded from both sums.
-    Uses fixed MAX_SEQ_LEN so results are comparable across configs.
+    ROC AUC on validation set. This is the ground truth metric.
+    Higher is better (1.0 = perfect, 0.5 = random).
     """
-    token_bytes = get_token_bytes(device="cuda")
-    val_loader = make_dataloader(tokenizer, batch_size, MAX_SEQ_LEN, "val")
-    steps = EVAL_TOKENS // (batch_size * MAX_SEQ_LEN)
-    total_nats = 0.0
-    total_bytes = 0
-    for _ in range(steps):
-        x, y, _ = next(val_loader)
-        loss_flat = model(x, y, reduction='none').view(-1)
-        y_flat = y.view(-1)
-        nbytes = token_bytes[y_flat]
-        mask = nbytes > 0
-        total_nats += (loss_flat * mask).sum().item()
-        total_bytes += nbytes.sum().item()
-    return total_nats / (math.log(2) * total_bytes)
+    from sklearn.metrics import roc_auc_score
+    y_prob = model.predict_proba(X_val)[:, 1]
+    return roc_auc_score(y_val, y_prob)
+
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepare data and tokenizer for autoresearch")
-    parser.add_argument("--num-shards", type=int, default=10, help="Number of training shards to download (-1 = all). Val shard is always pinned.")
-    parser.add_argument("--download-workers", type=int, default=8, help="Number of parallel download workers")
+    parser = argparse.ArgumentParser(
+        description="Prepare data for flood susceptibility experiments"
+    )
+    parser.add_argument(
+        "--num-tiles", type=int, default=-1,
+        help="Number of training tiles (-1 = all)"
+    )
     args = parser.parse_args()
-
-    num_shards = MAX_SHARD if args.num_shards == -1 else args.num_shards
 
     print(f"Cache directory: {CACHE_DIR}")
     print()
 
-    # Step 1: Download data
-    download_data(num_shards, download_workers=args.download_workers)
+    # Download training data
+    train_tiles = TRAIN_TILES[:args.num_tiles] if args.num_tiles > 0 else TRAIN_TILES
+    print("=== Training tiles ===")
+    valid_train = download_all_data(train_tiles)
     print()
 
-    # Step 2: Train tokenizer
-    train_tokenizer()
+    # Download validation data
+    print("=== Validation tiles ===")
+    valid_val = download_all_data(VAL_TILES)
+    print()
+
+    if not valid_train or not valid_val:
+        print("ERROR: Need at least 1 valid train tile and 1 valid val tile.")
+        sys.exit(1)
+
+    # Create datasets
+    DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("=== Creating training dataset ===")
+    X_train, y_train = create_dataset(valid_train, SAMPLES_PER_TILE, seed=42)
+    print(f"Training set: {len(X_train):,} pixels, {y_train.mean():.1%} flood")
+    print()
+
+    print("=== Creating validation dataset ===")
+    X_val, y_val = create_dataset(valid_val, SAMPLES_PER_TILE, seed=123)
+    print(f"Validation set: {len(X_val):,} pixels, {y_val.mean():.1%} flood")
+    print()
+
+    # Save arrays
+    np.save(DATASET_DIR / "X_train.npy", X_train)
+    np.save(DATASET_DIR / "y_train.npy", y_train)
+    np.save(DATASET_DIR / "X_val.npy", X_val)
+    np.save(DATASET_DIR / "y_val.npy", y_val)
+
+    # Save metadata
+    meta = {
+        "feature_names": FEATURE_NAMES,
+        "n_features": N_FEATURES,
+        "n_train": int(len(X_train)),
+        "n_val": int(len(X_val)),
+        "flood_rate_train": float(y_train.mean()),
+        "flood_rate_val": float(y_val.mean()),
+        "train_tiles": [[int(e), int(n)] for e, n in valid_train],
+        "val_tiles": [[int(e), int(n)] for e, n in valid_val],
+        "samples_per_tile": SAMPLES_PER_TILE,
+    }
+    with open(DATASET_DIR / "metadata.json", "w") as f:
+        json.dump(meta, f, indent=2)
+
+    print(f"Saved to {DATASET_DIR}")
     print()
     print("Done! Ready to train.")

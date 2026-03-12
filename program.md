@@ -1,18 +1,32 @@
-# autoresearch
+# autoresearch-flood
 
-This is an experiment to have the LLM do its own research.
+Autonomous flood susceptibility research. Train ML models to predict pluvial (surface water) flood risk from terrain features.
+
+## Context
+
+**What we're building**: A per-pixel flood susceptibility score for England, trained on 2m terrain features with EA surface water flood maps as ground truth. Analogous to 7analytics' pluvial flood index but trained on gridded model outputs, not claims data.
+
+**Features** (all at 2m resolution, England-wide terrain products):
+- `slope` — terrain gradient in degrees
+- `twi` — topographic wetness index (log(a/tan(b)), higher = wetter)
+- `tpi` — topographic position index (elevation relative to neighbours)
+- `curvature` — profile curvature (concave vs convex)
+- `spi` — stream power index
+- `elevation` — hydrologically conditioned DEM (metres, BNG)
+
+**Labels**: Binary — EA Risk of Flooding from Surface Water (RoFSW). 1 = flood extent, 0 = no flood. Training data is balanced 50/50.
+
+**Metric**: ROC AUC on spatially held-out validation tiles. Higher is better (1.0 = perfect, 0.5 = random).
 
 ## Setup
 
-To set up a new experiment, work with the user to:
-
-1. **Agree on a run tag**: propose a tag based on today's date (e.g. `mar5`). The branch `autoresearch/<tag>` must not already exist — this is a fresh run.
+1. **Agree on a run tag**: propose a tag based on today's date (e.g. `mar12`). The branch `autoresearch/<tag>` must not already exist.
 2. **Create the branch**: `git checkout -b autoresearch/<tag>` from current master.
-3. **Read the in-scope files**: The repo is small. Read these files for full context:
+3. **Read the in-scope files**:
    - `README.md` — repository context.
-   - `prepare.py` — fixed constants, data prep, tokenizer, dataloader, evaluation. Do not modify.
-   - `train.py` — the file you modify. Model architecture, optimizer, training loop.
-4. **Verify data exists**: Check that `~/.cache/autoresearch/` contains data shards and a tokenizer. If not, tell the human to run `uv run prepare.py`.
+   - `prepare.py` — fixed constants, data download, sampling, evaluation. Do not modify.
+   - `train.py` — the file you modify. Model, hyperparameters, feature engineering.
+4. **Verify data exists**: Check that `~/.cache/autoresearch-flood/dataset/` contains X_train.npy, y_train.npy, X_val.npy, y_val.npy. If not, tell the human to run `uv run prepare.py`.
 5. **Initialize results.tsv**: Create `results.tsv` with just the header row. The baseline will be recorded after the first run.
 6. **Confirm and go**: Confirm setup looks good.
 
@@ -20,21 +34,21 @@ Once you get confirmation, kick off the experimentation.
 
 ## Experimentation
 
-Each experiment runs on a single GPU. The training script runs for a **fixed time budget of 5 minutes** (wall clock training time, excluding startup/compilation). You launch it simply as: `uv run train.py`.
+Each experiment runs on CPU. The training script should finish within a **5 minute** time budget. You launch it simply as: `uv run train.py`.
 
 **What you CAN do:**
-- Modify `train.py` — this is the only file you edit. Everything is fair game: model architecture, optimizer, hyperparameters, training loop, batch size, model size, etc.
+- Modify `train.py` — this is the only file you edit. Everything is fair game: model type, hyperparameters, feature engineering, preprocessing, ensemble methods.
 
 **What you CANNOT do:**
-- Modify `prepare.py`. It is read-only. It contains the fixed evaluation, data loading, tokenizer, and training constants (time budget, sequence length, etc).
+- Modify `prepare.py`. It is read-only. It contains the fixed evaluation, data loading, and training constants.
 - Install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
-- Modify the evaluation harness. The `evaluate_bpb` function in `prepare.py` is the ground truth metric.
+- Modify the evaluation harness. The `evaluate_auc` function in `prepare.py` is the ground truth metric.
 
-**The goal is simple: get the lowest val_bpb.** Since the time budget is fixed, you don't need to worry about training time — it's always 5 minutes. Everything is fair game: change the architecture, the optimizer, the hyperparameters, the batch size, the model size. The only constraint is that the code runs without crashing and finishes within the time budget.
+**The goal is simple: get the highest val_auc.** Since the time budget is fixed at 5 minutes, everything is fair game: change the model, the hyperparameters, add feature engineering, try different classifiers.
 
-**VRAM** is a soft constraint. Some increase is acceptable for meaningful val_bpb gains, but it should not blow up dramatically.
+**Available libraries**: scikit-learn, numpy, pandas, matplotlib. These are powerful — scikit-learn has dozens of classifiers, preprocessors, and pipeline tools.
 
-**Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome — that's a simplification win. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude. A 0.001 val_bpb improvement that adds 20 lines of hacky code? Probably not worth it. A 0.001 val_bpb improvement from deleting code? Definitely keep. An improvement of ~0 but much simpler code? Keep.
+**Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude.
 
 **The first run**: Your very first run should always be to establish the baseline, so you will run the training script as is.
 
@@ -44,52 +58,57 @@ Once the script finishes it prints a summary like this:
 
 ```
 ---
-val_bpb:          0.997900
-training_seconds: 300.1
-total_seconds:    325.9
-peak_vram_mb:     45060.2
-mfu_percent:      39.80
-total_tokens_M:   499.6
-num_steps:        953
-num_params_M:     50.3
-depth:            8
+val_auc:          0.850000
+training_seconds: 45.2
+total_seconds:    46.1
+n_features:       6
+n_train:          400000
+n_val:            100000
+flood_rate_train: 0.5000
+flood_rate_val:   0.5000
+n_estimators:     200
+
+Feature importance:
+  slope           0.2345
+  twi             0.1890
+  ...
 ```
 
-Note that the script is configured to always stop after 5 minutes, so depending on the computing platform of this computer the numbers might look different. You can extract the key metric from the log file:
+You can extract the key metric from the log file:
 
 ```
-grep "^val_bpb:" run.log
+grep "^val_auc:" run.log
 ```
 
 ## Logging results
 
-When an experiment is done, log it to `results.tsv` (tab-separated, NOT comma-separated — commas break in descriptions).
+When an experiment is done, log it to `results.tsv` (tab-separated, NOT comma-separated).
 
 The TSV has a header row and 5 columns:
 
 ```
-commit	val_bpb	memory_gb	status	description
+commit	val_auc	training_seconds	status	description
 ```
 
 1. git commit hash (short, 7 chars)
-2. val_bpb achieved (e.g. 1.234567) — use 0.000000 for crashes
-3. peak memory in GB, round to .1f (e.g. 12.3 — divide peak_vram_mb by 1024) — use 0.0 for crashes
+2. val_auc achieved (e.g. 0.850000) — use 0.000000 for crashes
+3. training_seconds (e.g. 45.2) — use 0.0 for crashes
 4. status: `keep`, `discard`, or `crash`
 5. short text description of what this experiment tried
 
 Example:
 
 ```
-commit	val_bpb	memory_gb	status	description
-a1b2c3d	0.997900	44.0	keep	baseline
-b2c3d4e	0.993200	44.2	keep	increase LR to 0.04
-c3d4e5f	1.005000	44.0	discard	switch to GeLU activation
-d4e5f6g	0.000000	0.0	crash	double model width (OOM)
+commit	val_auc	training_seconds	status	description
+a1b2c3d	0.850000	45.2	keep	baseline random forest
+b2c3d4e	0.862000	52.1	keep	increase n_estimators to 500
+c3d4e5f	0.848000	120.5	discard	gradient boosting (slower + worse)
+d4e5f6g	0.000000	0.0	crash	bug in feature engineering
 ```
 
 ## The experiment loop
 
-The experiment runs on a dedicated branch (e.g. `autoresearch/mar5` or `autoresearch/mar5-gpu0`).
+The experiment runs on a dedicated branch (e.g. `autoresearch/mar12`).
 
 LOOP FOREVER:
 
@@ -97,18 +116,51 @@ LOOP FOREVER:
 2. Tune `train.py` with an experimental idea by directly hacking the code.
 3. git commit
 4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
-5. Read out the results: `grep "^val_bpb:\|^peak_vram_mb:" run.log`
+5. Read out the results: `grep "^val_auc:\|^training_seconds:" run.log`
 6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
 7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_bpb improved (lower), you "advance" the branch, keeping the git commit
-9. If val_bpb is equal or worse, you git reset back to where you started
+8. If val_auc improved (higher), you "advance" the branch, keeping the git commit
+9. If val_auc is equal or worse, you git reset back to where you started
 
-The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
+**Timeout**: Each experiment should take well under 5 minutes. If a run exceeds 10 minutes, kill it and treat it as a failure.
 
-**Timeout**: Each experiment should take ~5 minutes total (+ a few seconds for startup and eval overhead). If a run exceeds 10 minutes, kill it and treat it as a failure (discard and revert).
+**Crashes**: If a run crashes (a bug, wrong API, etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash", and move on.
 
-**Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the tsv, and move on.
+**NEVER STOP**: Once the experiment loop has begun, do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — try combining previous near-misses, try more radical approaches, try feature engineering you haven't attempted yet. The loop runs until the human interrupts you, period.
 
-**NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read papers referenced in the code, re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. The loop runs until the human interrupts you, period.
+## Ideas to explore
 
-As an example use case, a user might leave you running while they sleep. If each experiment takes you ~5 minutes then you can run approx 12/hour, for a total of about 100 over the duration of the average human sleep. The user then wakes up to experimental results, all completed by you while they slept!
+Here are starting points for experimentation (ordered roughly by expected impact):
+
+**Model types** (all in scikit-learn):
+- HistGradientBoostingClassifier — fast gradient boosting, often best for tabular
+- GradientBoostingClassifier — slower but sometimes better
+- ExtraTreesClassifier — more random splits, can be surprisingly good
+- AdaBoostClassifier, BaggingClassifier — ensemble wrappers
+- VotingClassifier, StackingClassifier — combine multiple models
+
+**Feature engineering** (modify train.py to create derived features):
+- Log transforms: `np.log1p(slope)`, `np.log1p(spi)`
+- Interactions: `slope * twi`, `tpi * curvature`
+- Polynomial features from sklearn.preprocessing
+- Binning / discretization
+- Rank transforms
+
+**Hyperparameter tuning**:
+- n_estimators (more trees = slower but potentially better)
+- max_depth (deeper = more complex, risk of overfitting)
+- min_samples_leaf, min_samples_split
+- max_features (fraction of features per split)
+- class_weight (even though data is balanced, weighting can help)
+
+**Preprocessing**:
+- StandardScaler, RobustScaler
+- Clipping outliers
+- Missing value strategies (though data should be clean)
+
+**Domain knowledge hints**:
+- TWI is the most physically meaningful predictor — water flows downhill and accumulates
+- Slope and curvature together capture micro-topography
+- TPI captures whether a pixel is in a local depression (negative = depression)
+- SPI captures erosive potential of flowing water
+- Elevation alone is less predictive than relative measures (TWI, TPI)
