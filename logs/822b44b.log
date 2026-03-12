@@ -1,0 +1,20 @@
+Train: 540,000 samples, 6 features, 50.0% flood
+Val:   160,000 samples, 50.0% flood
+---
+val_auc:          0.861790
+training_seconds: 42.6
+total_seconds:    43.3
+n_features:       6
+n_train:          540000
+n_val:            160000
+flood_rate_train: 0.5000
+flood_rate_val:   0.5000
+n_estimators:     500
+
+Feature importance:
+  tpi             0.3495
+  slope           0.1591
+  twi             0.1486
+  elevation       0.1308
+  curvature       0.1137
+  spi             0.0983

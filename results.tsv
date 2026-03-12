@@ -1,3 +1,4 @@
 commit	val_auc	training_seconds	status	description
 3619941	0.866636	18.3	keep	baseline random forest (200 trees depth 20)
 6fc47f1	0.865611	50.1	discard	HistGradientBoosting 500 iter depth 8 lr 0.1
+822b44b	0.861790	42.6	discard	RF 500 trees unlimited depth min_leaf 5 (overfit)
