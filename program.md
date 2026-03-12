@@ -48,7 +48,7 @@ Each experiment runs on CPU. The training script should finish within a **5 minu
 
 **Available libraries**: scikit-learn, numpy, pandas, matplotlib. These are powerful — scikit-learn has dozens of classifiers, preprocessors, and pipeline tools.
 
-**Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude.
+**Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome.
 
 **The first run**: Your very first run should always be to establish the baseline, so you will run the training script as is.
 
@@ -80,11 +80,23 @@ You can extract the key metric from the log file:
 grep "^val_auc:" run.log
 ```
 
-## Logging results
+## Logging and Traceability
 
-When an experiment is done, log it to `results.tsv` (tab-separated, NOT comma-separated).
+**CRITICAL**: Every experiment must be fully traceable. This research runs autonomously and the human needs to reconstruct what happened after the fact.
 
-The TSV has a header row and 5 columns:
+### Per-experiment logs
+
+After each experiment, save the full log to `logs/`:
+
+```bash
+cp run.log logs/$(git rev-parse --short HEAD).log
+```
+
+This preserves the complete output for every experiment, linked by commit hash.
+
+### results.tsv
+
+Tab-separated, 5 columns. **Committed to git** — this is the primary research artifact.
 
 ```
 commit	val_auc	training_seconds	status	description
@@ -96,14 +108,29 @@ commit	val_auc	training_seconds	status	description
 4. status: `keep`, `discard`, or `crash`
 5. short text description of what this experiment tried
 
-Example:
+### Vault progress reports
+
+Every **10 experiments** (or on a significant milestone), write a progress report to:
 
 ```
-commit	val_auc	training_seconds	status	description
-a1b2c3d	0.850000	45.2	keep	baseline random forest
-b2c3d4e	0.862000	52.1	keep	increase n_estimators to 500
-c3d4e5f	0.848000	120.5	discard	gradient boosting (slower + worse)
-d4e5f6g	0.000000	0.0	crash	bug in feature engineering
+/Users/camerhann/ChrisVault/Donna/Research/flood-susceptibility/YYYY-MM-DD-progress.md
+```
+
+The report should include:
+- Current best val_auc and which model achieved it
+- Table of all experiments so far (from results.tsv)
+- Top feature importances from best model
+- Key insights or surprises
+- Next directions to explore
+
+Also write a **final report** on the last experiment before stopping.
+
+### Git backups
+
+Every **5 experiments**, push the branch to origin:
+
+```bash
+git push origin autoresearch/<tag>
 ```
 
 ## The experiment loop
@@ -113,24 +140,26 @@ The experiment runs on a dedicated branch (e.g. `autoresearch/mar12`).
 LOOP FOREVER:
 
 1. Look at the git state: the current branch/commit we're on
-2. Tune `train.py` with an experimental idea by directly hacking the code.
-3. git commit
-4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
-5. Read out the results: `grep "^val_auc:\|^training_seconds:" run.log`
-6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_auc improved (higher), you "advance" the branch, keeping the git commit
-9. If val_auc is equal or worse, you git reset back to where you started
+2. Tune `train.py` with an experimental idea by directly hacking the code
+3. git commit the code change
+4. Run the experiment: `uv run train.py > run.log 2>&1`
+5. Read results: `grep "^val_auc:\|^training_seconds:" run.log`
+6. If empty, crashed. Run `tail -n 50 run.log` for traceback. Fix if trivial, skip if not.
+7. Save log: `cp run.log logs/$(git rev-parse --short HEAD).log`
+8. Append results to results.tsv
+9. `git add results.tsv logs/ && git commit -m "results: {description}"`
+10. If val_auc improved (higher): keep — advance the branch
+11. If val_auc equal or worse: discard — `git revert` the code change (keep the results commit so the record is preserved)
+12. Every 5 experiments: `git push origin autoresearch/<tag>`
+13. Every 10 experiments: write vault progress report
 
-**Timeout**: Each experiment should take well under 5 minutes. If a run exceeds 10 minutes, kill it and treat it as a failure.
+**Timeout**: If a run exceeds 10 minutes, kill it and treat as failure.
 
-**Crashes**: If a run crashes (a bug, wrong API, etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash", and move on.
+**Crashes**: Fix trivial bugs and re-run. If fundamentally broken, log "crash" and move on.
 
-**NEVER STOP**: Once the experiment loop has begun, do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — try combining previous near-misses, try more radical approaches, try feature engineering you haven't attempted yet. The loop runs until the human interrupts you, period.
+**NEVER STOP**: The loop runs until the human interrupts you. If you run out of ideas, think harder — combine near-misses, try radical approaches, read scikit-learn docs for unexplored models.
 
 ## Ideas to explore
-
-Here are starting points for experimentation (ordered roughly by expected impact):
 
 **Model types** (all in scikit-learn):
 - HistGradientBoostingClassifier — fast gradient boosting, often best for tabular
@@ -139,7 +168,7 @@ Here are starting points for experimentation (ordered roughly by expected impact
 - AdaBoostClassifier, BaggingClassifier — ensemble wrappers
 - VotingClassifier, StackingClassifier — combine multiple models
 
-**Feature engineering** (modify train.py to create derived features):
+**Feature engineering** (create derived features in train.py):
 - Log transforms: `np.log1p(slope)`, `np.log1p(spi)`
 - Interactions: `slope * twi`, `tpi * curvature`
 - Polynomial features from sklearn.preprocessing
@@ -147,20 +176,14 @@ Here are starting points for experimentation (ordered roughly by expected impact
 - Rank transforms
 
 **Hyperparameter tuning**:
-- n_estimators (more trees = slower but potentially better)
-- max_depth (deeper = more complex, risk of overfitting)
-- min_samples_leaf, min_samples_split
-- max_features (fraction of features per split)
-- class_weight (even though data is balanced, weighting can help)
-
-**Preprocessing**:
-- StandardScaler, RobustScaler
-- Clipping outliers
-- Missing value strategies (though data should be clean)
+- n_estimators, max_depth, min_samples_leaf, max_features
+- learning_rate (for boosting)
+- class_weight
 
 **Domain knowledge hints**:
 - TWI is the most physically meaningful predictor — water flows downhill and accumulates
+- TPI captures local depressions (negative TPI = depression = flood prone)
 - Slope and curvature together capture micro-topography
-- TPI captures whether a pixel is in a local depression (negative = depression)
 - SPI captures erosive potential of flowing water
 - Elevation alone is less predictive than relative measures (TWI, TPI)
+- Interactions like slope x TWI encode "steep but high drainage area" vs "flat with low drainage"

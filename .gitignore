@@ -9,11 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
-# Results file (untracked, per-session)
-results.tsv
-
-# Run logs
-run.log
-
 # Lock file (regenerated from pyproject.toml)
 uv.lock
+
+# Temp run log (per-experiment logs saved in logs/)
+run.log
