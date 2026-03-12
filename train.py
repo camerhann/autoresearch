@@ -61,7 +61,7 @@ print(f"Engineered features: {X_train.shape[1]} total")
 # ---------------------------------------------------------------------------
 
 rf = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=1000,
     max_depth=20,
     min_samples_leaf=10,
     n_jobs=-1,
@@ -81,7 +81,7 @@ hgbt = HistGradientBoostingClassifier(
 )
 
 et = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=1000,
     max_depth=20,
     min_samples_leaf=10,
     n_jobs=-1,
