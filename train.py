@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -51,8 +51,16 @@ hgbt = HistGradientBoostingClassifier(
     random_state=42,
 )
 
+et = ExtraTreesClassifier(
+    n_estimators=500,
+    max_depth=20,
+    min_samples_leaf=10,
+    n_jobs=-1,
+    random_state=42,
+)
+
 model = VotingClassifier(
-    estimators=[("rf", rf), ("hgbt", hgbt)],
+    estimators=[("rf", rf), ("hgbt", hgbt), ("et", et)],
     voting="soft",
     n_jobs=-1,
 )
