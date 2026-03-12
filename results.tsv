@@ -21,3 +21,4 @@ fd975e8	0.871296	122.7	discard	RF(1000)+HGBT+ET(1000) 3-way voting (no improveme
 67f4fd9	0.872201	174.5	keep	4-way voting RF+HGBT+ET+AdaBoost (new best)
 e189462	0.871776	175.5	discard	weighted voting RF=3 HGBT=2 ET=2 Ada=1 (worse than equal)
 a812ecd	0.872225	418.2	discard	AdaBoost 500 est lr 0.05 (marginal +0.00002 but 2.5x slower)
+2126abe	0.871224	339.9	discard	stacked original+quantile features (worse + 5x slower)
