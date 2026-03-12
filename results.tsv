@@ -9,3 +9,4 @@ e8e6f3e	0.866787	37.1	keep	RF 500 trees depth 20 (small but real improvement)
 faeb399	0.865095	124.4	discard	HGBT 2000 iter depth 6 lr 0.05 early stop (1209 iters)
 fc2f4a7	0.866874	71.6	keep	RF 1000 trees depth 20
 b1ab1ce	0.867655	39.8	keep	VotingClassifier RF(500)+HGBT(1000) soft voting
+b0987e4	0.866145	406.1	discard	StackingClassifier RF+HGBT→LR cv=3 (slow + worse)
