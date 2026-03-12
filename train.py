@@ -10,6 +10,7 @@ Run: uv run train.py
 import time
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, ExtraTreesClassifier, VotingClassifier, AdaBoostClassifier
+from sklearn.preprocessing import QuantileTransformer
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -53,6 +54,15 @@ def add_features(X):
 
 X_train = add_features(X_train)
 X_val = add_features(X_val)
+
+# Quantile-transform all features to uniform distribution (helps HGBT + AdaBoost)
+qt = QuantileTransformer(n_quantiles=1000, output_distribution='uniform', random_state=42)
+X_train_qt = qt.fit_transform(X_train)
+X_val_qt = qt.transform(X_val)
+
+# Stack original + quantile-transformed features
+X_train = np.hstack([X_train, X_train_qt])
+X_val = np.hstack([X_val, X_val_qt])
 
 print(f"Engineered features: {X_train.shape[1]} total")
 
