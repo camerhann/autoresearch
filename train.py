@@ -143,7 +143,7 @@ et4 = ExtraTreesClassifier(
 )
 
 model = VotingClassifier(
-    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("hgbt", hgbt), ("et", et), ("et2", et2), ("et3", et3), ("et4", et4), ("ada", ada)],
+    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("hgbt", hgbt), ("et", et), ("et2", et2), ("et3", et3), ("et4", et4)],
     voting="soft",
     n_jobs=-1,
 )
