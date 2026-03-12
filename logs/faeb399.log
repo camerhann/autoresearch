@@ -1,0 +1,12 @@
+Train: 540,000 samples, 6 features, 50.0% flood
+Val:   160,000 samples, 50.0% flood
+---
+val_auc:          0.865095
+training_seconds: 124.4
+total_seconds:    125.5
+n_features:       6
+n_train:          540000
+n_val:            160000
+flood_rate_train: 0.5000
+flood_rate_val:   0.5000
+n_iter_best:      1209
