@@ -118,16 +118,8 @@ et2 = ExtraTreesClassifier(
     random_state=77,
 )
 
-rf4 = RandomForestClassifier(
-    n_estimators=500,
-    max_depth=25,
-    min_samples_leaf=5,
-    n_jobs=-1,
-    random_state=55,
-)
-
 model = VotingClassifier(
-    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("hgbt", hgbt), ("et", et), ("et2", et2), ("ada", ada)],
+    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("hgbt", hgbt), ("et", et), ("et2", et2), ("ada", ada)],
     voting="soft",
     n_jobs=-1,
 )
