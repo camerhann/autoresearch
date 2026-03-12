@@ -14,3 +14,4 @@ b0987e4	0.866145	406.1	discard	StackingClassifier RF+HGBT→LR cv=3 (slow + wors
 80ac00a	0.869809	61.0	keep	3-way voting + feat eng (tpi*twi slope*twi tpi*curv log_spi)
 f33f49d	0.871279	63.7	keep	3-way voting + 7 interaction features (added tpi*slope twi*curv twi/slope)
 62c7846	0.871358	99.9	discard	add tpi^2 spi/slope |curv|*twi (marginal +0.00008 but 2x slower)
+64ec406	0.871473	124.8	discard	HGBT depth 8 lr 0.03 leaf 30 (marginal +0.0002 but 2x slower)
