@@ -62,8 +62,9 @@ print(f"Engineered features: {X_train.shape[1]} total")
 
 rf = RandomForestClassifier(
     n_estimators=500,
-    max_depth=20,
-    min_samples_leaf=10,
+    max_depth=25,
+    min_samples_leaf=5,
+    max_features="sqrt",
     n_jobs=-1,
     random_state=42,
 )
