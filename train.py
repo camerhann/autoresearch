@@ -32,7 +32,7 @@ print(f"Val:   {len(X_val):,} samples, {y_val.mean():.1%} flood")
 # ---------------------------------------------------------------------------
 
 model = RandomForestClassifier(
-    n_estimators=200,
+    n_estimators=500,
     max_depth=20,
     min_samples_leaf=10,
     n_jobs=-1,
