@@ -28,7 +28,32 @@ print(f"Train: {len(X_train):,} samples, {N_FEATURES} features, {y_train.mean():
 print(f"Val:   {len(X_val):,} samples, {y_val.mean():.1%} flood")
 
 # ---------------------------------------------------------------------------
-# Model — Voting ensemble: RF + HGBT
+# Feature engineering — help HGBT with explicit interactions
+# Features: slope(0), twi(1), tpi(2), curvature(3), spi(4), elevation(5)
+# ---------------------------------------------------------------------------
+
+def add_features(X):
+    tpi = X[:, 2]
+    twi = X[:, 1]
+    slope = X[:, 0]
+    curv = X[:, 3]
+    spi = X[:, 4]
+    new = np.column_stack([
+        X,
+        tpi * twi,           # depression + wetness
+        slope * twi,          # steep + wet
+        tpi * curv,           # depression + concavity
+        np.log1p(np.abs(spi)),  # log SPI (skewed)
+    ])
+    return new
+
+X_train = add_features(X_train)
+X_val = add_features(X_val)
+
+print(f"Engineered features: {X_train.shape[1]} total")
+
+# ---------------------------------------------------------------------------
+# Model — Voting ensemble: RF + HGBT + ET
 # ---------------------------------------------------------------------------
 
 rf = RandomForestClassifier(
@@ -92,4 +117,4 @@ print(f"n_train:          {len(X_train)}")
 print(f"n_val:            {len(X_val)}")
 print(f"flood_rate_train: {y_train.mean():.4f}")
 print(f"flood_rate_val:   {y_val.mean():.4f}")
-print(f"model_type:       VotingClassifier(RF+HGBT)")
+print(f"model_type:       VotingClassifier(RF+HGBT+ET)+feat_eng")
