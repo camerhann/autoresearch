@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -31,10 +31,10 @@ print(f"Val:   {len(X_val):,} samples, {y_val.mean():.1%} flood")
 # Model
 # ---------------------------------------------------------------------------
 
-model = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=20,
-    min_samples_leaf=10,
+model = ExtraTreesClassifier(
+    n_estimators=300,
+    max_depth=25,
+    min_samples_leaf=5,
     n_jobs=-1,
     random_state=42,
 )
