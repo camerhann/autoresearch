@@ -118,8 +118,20 @@ et2 = ExtraTreesClassifier(
     random_state=77,
 )
 
+hgbt2 = HistGradientBoostingClassifier(
+    max_iter=500,
+    max_depth=4,
+    learning_rate=0.1,
+    min_samples_leaf=20,
+    l2_regularization=0.3,
+    early_stopping=True,
+    validation_fraction=0.15,
+    n_iter_no_change=15,
+    random_state=99,
+)
+
 model = VotingClassifier(
-    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("hgbt", hgbt), ("et", et), ("et2", et2), ("ada", ada)],
+    estimators=[("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("hgbt", hgbt), ("hgbt2", hgbt2), ("et", et), ("et2", et2), ("ada", ada)],
     voting="soft",
     n_jobs=-1,
 )
