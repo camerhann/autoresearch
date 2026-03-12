@@ -48,3 +48,4 @@ cf201e9	0.874784	142.3	discard	17-way with depth-8 (too close to 7, no improveme
 2a592c0	0.874894	158.2	discard	extend to depth 2-25 (no improvement)
 80ba18e	0.874931	166.0	discard	variable tree counts 200-500 (marginal +0.00003)
 ab99325	0.872550	389.6	discard	max_features per depth (much worse + slow)
+16e787b	0.871237	211.8	discard	PolynomialFeatures degree 2 (much worse than hand-crafted)
