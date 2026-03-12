@@ -184,11 +184,27 @@ et7 = ExtraTreesClassifier(
     random_state=44,
 )
 
+rf8 = RandomForestClassifier(
+    n_estimators=500,
+    max_depth=18,
+    min_samples_leaf=15,
+    n_jobs=-1,
+    random_state=66,
+)
+
+et8 = ExtraTreesClassifier(
+    n_estimators=500,
+    max_depth=18,
+    min_samples_leaf=15,
+    n_jobs=-1,
+    random_state=66,
+)
+
 model = VotingClassifier(
     estimators=[
-        ("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("rf5", rf5), ("rf6", rf6), ("rf7", rf7),
+        ("rf1", rf1), ("rf2", rf2), ("rf3", rf3), ("rf4", rf4), ("rf5", rf5), ("rf6", rf6), ("rf7", rf7), ("rf8", rf8),
         ("hgbt", hgbt),
-        ("et", et), ("et2", et2), ("et3", et3), ("et4", et4), ("et5", et5), ("et6", et6), ("et7", et7),
+        ("et", et), ("et2", et2), ("et3", et3), ("et4", et4), ("et5", et5), ("et6", et6), ("et7", et7), ("et8", et8),
     ],
     voting="soft",
     n_jobs=-1,
