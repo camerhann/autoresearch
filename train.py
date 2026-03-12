@@ -62,16 +62,16 @@ print(f"Engineered features: {X_train.shape[1]} total")
 
 DEPTHS = [3, 5, 7, 10, 12, 15, 20]
 MIN_LEAF = {3: 100, 5: 50, 7: 40, 10: 30, 12: 25, 15: 20, 20: 10}
-TREES = 300
+TREES = {3: 200, 5: 200, 7: 300, 10: 400, 12: 400, 15: 500, 20: 500}
 
 estimators = []
 for i, d in enumerate(DEPTHS):
     rf = RandomForestClassifier(
-        n_estimators=TREES, max_depth=d, min_samples_leaf=MIN_LEAF[d],
+        n_estimators=TREES[d], max_depth=d, min_samples_leaf=MIN_LEAF[d],
         n_jobs=-1, random_state=42 + i,
     )
     et = ExtraTreesClassifier(
-        n_estimators=TREES, max_depth=d, min_samples_leaf=MIN_LEAF[d],
+        n_estimators=TREES[d], max_depth=d, min_samples_leaf=MIN_LEAF[d],
         n_jobs=-1, random_state=42 + i,
     )
     estimators.append((f"rf_d{d}", rf))
