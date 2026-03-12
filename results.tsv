@@ -1,0 +1,2 @@
+commit	val_auc	training_seconds	status	description
+3619941	0.866636	18.3	keep	baseline random forest (200 trees depth 20)
