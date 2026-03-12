@@ -10,6 +10,7 @@ Run: uv run train.py
 import time
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, VotingClassifier
+from sklearn.preprocessing import PolynomialFeatures
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -32,27 +33,9 @@ print(f"Val:   {len(X_val):,} samples, {y_val.mean():.1%} flood")
 # Features: slope(0), twi(1), tpi(2), curvature(3), spi(4), elevation(5)
 # ---------------------------------------------------------------------------
 
-def add_features(X):
-    slope = X[:, 0]
-    twi = X[:, 1]
-    tpi = X[:, 2]
-    curv = X[:, 3]
-    spi = X[:, 4]
-    elev = X[:, 5]
-    new = np.column_stack([
-        X,
-        tpi * twi,              # depression + wetness
-        slope * twi,            # steep + wet
-        tpi * curv,             # depression + concavity
-        np.log1p(np.abs(spi)),  # log SPI (skewed)
-        tpi * slope,            # depression + gradient
-        twi * curv,             # wetness + curvature
-        twi / (slope + 0.01),   # wetness per unit slope (flood accumulation)
-    ])
-    return new
-
-X_train = add_features(X_train)
-X_val = add_features(X_val)
+poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
+X_train = poly.fit_transform(X_train)
+X_val = poly.transform(X_val)
 
 print(f"Engineered features: {X_train.shape[1]} total")
 
