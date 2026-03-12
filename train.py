@@ -9,7 +9,7 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -28,14 +28,19 @@ print(f"Train: {len(X_train):,} samples, {N_FEATURES} features, {y_train.mean():
 print(f"Val:   {len(X_val):,} samples, {y_val.mean():.1%} flood")
 
 # ---------------------------------------------------------------------------
-# Model
+# Model — HistGradientBoosting with early stopping
 # ---------------------------------------------------------------------------
 
-model = RandomForestClassifier(
-    n_estimators=500,
-    max_depth=20,
-    min_samples_leaf=10,
-    n_jobs=-1,
+model = HistGradientBoostingClassifier(
+    max_iter=2000,
+    max_depth=6,
+    learning_rate=0.05,
+    min_samples_leaf=50,
+    max_bins=255,
+    l2_regularization=0.1,
+    early_stopping=True,
+    validation_fraction=0.15,
+    n_iter_no_change=20,
     random_state=42,
 )
 
@@ -53,10 +58,6 @@ training_seconds = time.time() - t0
 
 val_auc = evaluate_auc(model, X_val, y_val)
 
-# Feature importance
-importances = model.feature_importances_
-feat_imp = sorted(zip(FEATURE_NAMES, importances), key=lambda x: -x[1])
-
 # ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
@@ -70,8 +71,4 @@ print(f"n_train:          {len(X_train)}")
 print(f"n_val:            {len(X_val)}")
 print(f"flood_rate_train: {y_train.mean():.4f}")
 print(f"flood_rate_val:   {y_val.mean():.4f}")
-print(f"n_estimators:     {model.n_estimators}")
-print()
-print("Feature importance:")
-for name, imp in feat_imp:
-    print(f"  {name:15s} {imp:.4f}")
+print(f"n_iter_best:      {model.n_iter_}")
