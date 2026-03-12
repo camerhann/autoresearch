@@ -48,6 +48,9 @@ def add_features(X):
         tpi * slope,            # depression + gradient
         twi * curv,             # wetness + curvature
         twi / (slope + 0.01),   # wetness per unit slope (flood accumulation)
+        tpi ** 2,               # squared TPI (symmetric depression signal)
+        spi / (slope + 0.01),   # stream power per unit slope
+        np.abs(curv) * twi,     # curvature magnitude × wetness
     ])
     return new
 
