@@ -64,18 +64,15 @@ DEPTHS = [3, 5, 7, 10, 12, 15, 20]
 MIN_LEAF = {3: 100, 5: 50, 7: 40, 10: 30, 12: 25, 15: 20, 20: 10}
 TREES = 300
 
-MAX_FEATURES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.75]
-
 estimators = []
 for i, d in enumerate(DEPTHS):
-    mf = MAX_FEATURES[i]
     rf = RandomForestClassifier(
         n_estimators=TREES, max_depth=d, min_samples_leaf=MIN_LEAF[d],
-        max_features=mf, n_jobs=-1, random_state=42 + i,
+        n_jobs=-1, random_state=42 + i,
     )
     et = ExtraTreesClassifier(
         n_estimators=TREES, max_depth=d, min_samples_leaf=MIN_LEAF[d],
-        max_features=mf, n_jobs=-1, random_state=42 + i,
+        n_jobs=-1, random_state=42 + i,
     )
     estimators.append((f"rf_d{d}", rf))
     estimators.append((f"et_d{d}", et))
