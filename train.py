@@ -9,7 +9,8 @@ Run: uv run train.py
 
 import time
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 
 from prepare import CACHE_DIR, FEATURE_NAMES, N_FEATURES, TIME_BUDGET, evaluate_auc
 
@@ -51,9 +52,11 @@ hgbt = HistGradientBoostingClassifier(
     random_state=42,
 )
 
-model = VotingClassifier(
+model = StackingClassifier(
     estimators=[("rf", rf), ("hgbt", hgbt)],
-    voting="soft",
+    final_estimator=LogisticRegression(max_iter=1000),
+    cv=3,
+    passthrough=False,
     n_jobs=-1,
 )
 
@@ -84,4 +87,4 @@ print(f"n_train:          {len(X_train)}")
 print(f"n_val:            {len(X_val)}")
 print(f"flood_rate_train: {y_train.mean():.4f}")
 print(f"flood_rate_val:   {y_val.mean():.4f}")
-print(f"model_type:       VotingClassifier(RF+HGBT)")
+print(f"model_type:       StackingClassifier(RF+HGBT→LR)")
