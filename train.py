@@ -60,8 +60,8 @@ print(f"Engineered features: {X_train.shape[1]} total")
 # Model — Depth-spectrum voting ensemble: RF + ET at varied depths
 # ---------------------------------------------------------------------------
 
-DEPTHS = [2, 3, 5, 7, 10, 12, 15, 20, 25]
-MIN_LEAF = {2: 200, 3: 100, 5: 50, 7: 40, 10: 30, 12: 25, 15: 20, 20: 10, 25: 5}
+DEPTHS = [3, 5, 7, 10, 12, 15, 20]
+MIN_LEAF = {3: 100, 5: 50, 7: 40, 10: 30, 12: 25, 15: 20, 20: 10}
 TREES = 300
 
 estimators = []
