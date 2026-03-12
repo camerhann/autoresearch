@@ -64,6 +64,7 @@ rf = RandomForestClassifier(
     n_estimators=500,
     max_depth=20,
     min_samples_leaf=10,
+    min_samples_split=20,
     n_jobs=-1,
     random_state=42,
 )
@@ -74,6 +75,7 @@ hgbt = HistGradientBoostingClassifier(
     learning_rate=0.05,
     min_samples_leaf=50,
     l2_regularization=0.1,
+    max_bins=255,
     early_stopping=True,
     validation_fraction=0.15,
     n_iter_no_change=20,
@@ -84,6 +86,7 @@ et = ExtraTreesClassifier(
     n_estimators=500,
     max_depth=20,
     min_samples_leaf=10,
+    min_samples_split=20,
     n_jobs=-1,
     random_state=42,
 )
