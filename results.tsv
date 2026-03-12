@@ -23,3 +23,4 @@ e189462	0.871776	175.5	discard	weighted voting RF=3 HGBT=2 ET=2 Ada=1 (worse tha
 a812ecd	0.872225	418.2	discard	AdaBoost 500 est lr 0.05 (marginal +0.00002 but 2.5x slower)
 2126abe	0.871224	339.9	discard	stacked original+quantile features (worse + 5x slower)
 9260f0f	0.871535	169.5	discard	5-way voting with shallow HGBT2 (dilutes ensemble)
+4beb2b8	0.871586	194.3	discard	neg-TPI-only + slope*curv features (dilutes Ada)
