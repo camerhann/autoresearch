@@ -33,17 +33,21 @@ print(f"Val:   {len(X_val):,} samples, {y_val.mean():.1%} flood")
 # ---------------------------------------------------------------------------
 
 def add_features(X):
-    tpi = X[:, 2]
-    twi = X[:, 1]
     slope = X[:, 0]
+    twi = X[:, 1]
+    tpi = X[:, 2]
     curv = X[:, 3]
     spi = X[:, 4]
+    elev = X[:, 5]
     new = np.column_stack([
         X,
-        tpi * twi,           # depression + wetness
-        slope * twi,          # steep + wet
-        tpi * curv,           # depression + concavity
+        tpi * twi,              # depression + wetness
+        slope * twi,            # steep + wet
+        tpi * curv,             # depression + concavity
         np.log1p(np.abs(spi)),  # log SPI (skewed)
+        tpi * slope,            # depression + gradient
+        twi * curv,             # wetness + curvature
+        twi / (slope + 0.01),   # wetness per unit slope (flood accumulation)
     ])
     return new
 
