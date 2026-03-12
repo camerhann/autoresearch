@@ -48,6 +48,8 @@ def add_features(X):
         tpi * slope,            # depression + gradient
         twi * curv,             # wetness + curvature
         twi / (slope + 0.01),   # wetness per unit slope (flood accumulation)
+        np.clip(tpi, None, 0),  # negative TPI only (depressions)
+        slope * curv,           # slope × curvature (convergent steep)
     ])
     return new
 
