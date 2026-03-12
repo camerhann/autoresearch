@@ -97,7 +97,6 @@ ada = AdaBoostClassifier(
 model = VotingClassifier(
     estimators=[("rf", rf), ("hgbt", hgbt), ("et", et), ("ada", ada)],
     voting="soft",
-    weights=[3, 2, 2, 1],  # RF strongest, HGBT/ET mid, AdaBoost weakest
     n_jobs=-1,
 )
 
