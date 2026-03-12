@@ -61,7 +61,7 @@ print(f"Engineered features: {X_train.shape[1]} total")
 # ---------------------------------------------------------------------------
 
 rf1 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=20,
     min_samples_leaf=10,
     n_jobs=-1,
@@ -69,7 +69,7 @@ rf1 = RandomForestClassifier(
 )
 
 rf2 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=15,
     min_samples_leaf=20,
     n_jobs=-1,
@@ -89,7 +89,7 @@ hgbt = HistGradientBoostingClassifier(
 )
 
 et = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=20,
     min_samples_leaf=10,
     n_jobs=-1,
@@ -97,7 +97,7 @@ et = ExtraTreesClassifier(
 )
 
 rf3 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=10,
     min_samples_leaf=30,
     n_jobs=-1,
@@ -105,7 +105,7 @@ rf3 = RandomForestClassifier(
 )
 
 et2 = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=10,
     min_samples_leaf=30,
     n_jobs=-1,
@@ -113,7 +113,7 @@ et2 = ExtraTreesClassifier(
 )
 
 et3 = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=15,
     min_samples_leaf=20,
     n_jobs=-1,
@@ -121,7 +121,7 @@ et3 = ExtraTreesClassifier(
 )
 
 rf4 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=5,
     min_samples_leaf=50,
     n_jobs=-1,
@@ -129,7 +129,7 @@ rf4 = RandomForestClassifier(
 )
 
 et4 = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=5,
     min_samples_leaf=50,
     n_jobs=-1,
@@ -137,7 +137,7 @@ et4 = ExtraTreesClassifier(
 )
 
 rf5 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=7,
     min_samples_leaf=40,
     n_jobs=-1,
@@ -145,7 +145,7 @@ rf5 = RandomForestClassifier(
 )
 
 rf6 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=3,
     min_samples_leaf=100,
     n_jobs=-1,
@@ -153,7 +153,7 @@ rf6 = RandomForestClassifier(
 )
 
 et5 = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=7,
     min_samples_leaf=40,
     n_jobs=-1,
@@ -161,7 +161,7 @@ et5 = ExtraTreesClassifier(
 )
 
 et6 = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=3,
     min_samples_leaf=100,
     n_jobs=-1,
@@ -169,7 +169,7 @@ et6 = ExtraTreesClassifier(
 )
 
 rf7 = RandomForestClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=12,
     min_samples_leaf=25,
     n_jobs=-1,
@@ -177,7 +177,7 @@ rf7 = RandomForestClassifier(
 )
 
 et7 = ExtraTreesClassifier(
-    n_estimators=500,
+    n_estimators=300,
     max_depth=12,
     min_samples_leaf=25,
     n_jobs=-1,
