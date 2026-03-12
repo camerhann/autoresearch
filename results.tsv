@@ -16,3 +16,4 @@ f33f49d	0.871279	63.7	keep	3-way voting + 7 interaction features (added tpi*slop
 62c7846	0.871358	99.9	discard	add tpi^2 spi/slope |curv|*twi (marginal +0.00008 but 2x slower)
 64ec406	0.871473	124.8	discard	HGBT depth 8 lr 0.03 leaf 30 (marginal +0.0002 but 2x slower)
 fd975e8	0.871296	122.7	discard	RF(1000)+HGBT+ET(1000) 3-way voting (no improvement, 2x slower)
+654e2c4	0.870433	71.9	discard	RF depth 25 min_leaf 5 sqrt features (overfits)
