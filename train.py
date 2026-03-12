@@ -89,8 +89,8 @@ et = ExtraTreesClassifier(
 )
 
 ada = AdaBoostClassifier(
-    n_estimators=500,
-    learning_rate=0.05,
+    n_estimators=200,
+    learning_rate=0.1,
     random_state=42,
 )
 
