@@ -7,3 +7,4 @@ commit	val_auc	training_seconds	status	description
 4670dc8	0.865305	53.7	discard	RF 500 trees depth 20 max_features 0.5
 e8e6f3e	0.866787	37.1	keep	RF 500 trees depth 20 (small but real improvement)
 faeb399	0.865095	124.4	discard	HGBT 2000 iter depth 6 lr 0.05 early stop (1209 iters)
+fc2f4a7	0.866874	71.6	keep	RF 1000 trees depth 20
