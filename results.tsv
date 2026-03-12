@@ -3,3 +3,4 @@ commit	val_auc	training_seconds	status	description
 6fc47f1	0.865611	50.1	discard	HistGradientBoosting 500 iter depth 8 lr 0.1
 822b44b	0.861790	42.6	discard	RF 500 trees unlimited depth min_leaf 5 (overfit)
 2518107	0.866387	46.9	discard	interaction features (slope*twi tpi*curv log_spi tpi*twi)
+98aac43	0.859225	2.2	discard	ExtraTrees 300 trees depth 25 min_leaf 5
